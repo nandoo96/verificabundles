@@ -2,33 +2,60 @@ pipeline {
     agent any
 
     stages {
-        stage('Validate Bundles') {
+        stage('Deploy') {
+            steps {
+                // Seus passos de deploy
+            }
+        }
+        stage('Wait for Page to Load') {
             steps {
                 script {
                     def url = "http://crm-prd-app05:8080/crm/resources/system/console/bundles"
+                    def pageLoaded = false
                     def expectedPattern = "bundles in total - all [0-9]+ bundles active"
-                    def timeout = 600
-                    def interval = 30
-
+                    
+                    echo "Esperando a página carregar..."
+                    while (!pageLoaded) {
+                        def response = sh(script: "curl -s ${url}", returnStdout: true)
+                        
+                        if (response ==~ /(?s).*${expectedPattern}.*/) {
+                            echo "Página carregada. Iniciando verificação dos bundles..."
+                            pageLoaded = true
+                        } else {
+                            echo "Página ainda não carregada. Verificando novamente em 30 segundos..."
+                            sleep(time: 30, unit: 'SECONDS')
+                        }
+                    }
+                }
+            }
+        }
+        stage('Validate Bundles') {
+            steps {
+                script {
+                    def url = "http://seu_servidor/bundles"
+                    def expectedPattern = "bundles in total - all [0-9]+ bundles active"
+                    def timeout = 600 // Tempo máximo de verificação (em segundos)
+                    def interval = 30 // Intervalo entre verificações (em segundos)
+                    
                     def startTime = System.currentTimeMillis()
 
                     while (true) {
                         def response = sh(script: "curl -s ${url}", returnStdout: true)
-
-                        if (response ==~ /(?s).*${expectedPattern}.*/) {
-                            echo "Todos os bundles estão ativos."
-                            break
+                        
+                        if (!(response ==~ /(?s).*${expectedPattern}.*/)) {
+                            error "Um ou mais bundles caíram. Finalizando com erro."
                         }
 
                         def currentTime = System.currentTimeMillis()
                         def elapsedTime = (currentTime - startTime) / 1000
 
                         if (elapsedTime >= timeout) {
-                            error "Timeout: nem todos os bundles estão ativos após ${timeout} segundos."
+                            echo "Todos os bundles permaneceram ativos por ${timeout} segundos. Finalizando com sucesso."
+                            break
                         }
 
-                        echo "Bundles ainda não estão ativos. Verificando novamente em ${interval} segundos..."
-                        sleep(interval)
+                        echo "Verificação dos bundles bem-sucedida. Verificando novamente em ${interval} segundos..."
+                        sleep(time: interval, unit: 'SECONDS')
                     }
                 }
             }
