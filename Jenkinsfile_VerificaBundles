@@ -1,0 +1,37 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Validate Bundles') {
+            steps {
+                script {
+                    def url = "http://crm-prd-app05:8080/crm/resources/system/console/bundles"
+                    def expectedPattern = "bundles in total - all [0-9]+ bundles active"
+                    def timeout = 600
+                    def interval = 30
+
+                    def startTime = System.currentTimeMillis()
+
+                    while (true) {
+                        def response = sh(script: "curl -s ${url}", returnStdout: true)
+
+                        if (response ==~ /(?s).*${expectedPattern}.*/) {
+                            echo "Todos os bundles estão ativos."
+                            break
+                        }
+
+                        def currentTime = System.currentTimeMillis()
+                        def elapsedTime = (currentTime - startTime) / 1000
+
+                        if (elapsedTime >= timeout) {
+                            error "Timeout: nem todos os bundles estão ativos após ${timeout} segundos."
+                        }
+
+                        echo "Bundles ainda não estão ativos. Verificando novamente em ${interval} segundos..."
+                        sleep(interval)
+                    }
+                }
+            }
+        }
+    }
+}
